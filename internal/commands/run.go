@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"os"
+
 	"github.com/barthv/kwir/internal/kwir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -33,7 +36,7 @@ func newKwirCommand() *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringP("config", "c", "./configs/kwir-configs.yaml", "Path of the kwir yaml file holding rewrite rules")
+	cmd.PersistentFlags().StringP("config", "c", "./configs/kwir-config.yaml", "Path of the kwir yaml file holding rewrite rules")
 	viper.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
 
 	cmd.PersistentFlags().StringP("tlsdir", "t", "./certs/", "Dir containing webhook's tls certificates")
@@ -46,39 +49,51 @@ func runKwirCommand() error {
 	logger := log.Log.WithName("kwir-manager")
 
 	// Setup a Manager
-	logger.Info("setting up manager")
+	logger.Info("Setting up controller manager")
 	mgrOpts := manager.Options{
-		CertDir: viper.GetString("tlsdir"),
+		CertDir:                viper.GetString("tlsdir"),
+		HealthProbeBindAddress: ":9080",
+		LeaderElection:         false,
+		LeaderElectionID:       "w1vraga9pn4pg3go.svc.kwir.cluster.local",
 	}
 
 	mgr, err := manager.New(config.GetConfigOrDie(), mgrOpts)
 	if err != nil {
-		logger.Error(err, "unable to set up overall controller manager")
+		logger.Error(err, "Unable to spawn controller manager")
 		return err
 	}
 
 	// Setup webhooks
-	logger.Info("setting up webhook server")
+	logger.Info("Setting up webhook server")
 	hookServer := mgr.GetWebhookServer()
-
-	kwirPodRewriterHandler := &kwir.PodRewriter{
-		Client: mgr.GetClient(),
-	}
+	kwirPodRewriterHandler := &kwir.PodRewriter{Client: mgr.GetClient()}
 
 	// Load Kwir configuration from file
 	err = kwirPodRewriterHandler.LoadConfig(viper.GetString("config"))
 	if err != nil {
-		logger.Error(err, "Unable to load config")
+		logger.Error(err, "Unable to load configuration")
 		return err
 	}
 
-	logger.Info("registering webhooks to the webhook server")
+	logger.Info("Registering health & ready checks to the manager")
+	err = mgr.AddReadyzCheck("readyz", healthz.Ping)
+	if err != nil {
+		logger.Error(err, "Unable add a readiness check")
+		return err
+	}
+	err = mgr.AddHealthzCheck("healthz", healthz.Ping)
+	if err != nil {
+		logger.Error(err, "Unable add a health check")
+		return err
+	}
+
+	logger.Info("Registering webhooks to the webhook server")
 	hookServer.Register("/kwir-mutate-v1-pod", &webhook.Admission{Handler: kwirPodRewriterHandler})
 
-	logger.Info("starting manager")
+	logger.Info("Starting manager")
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		logger.Error(err, "unable to run manager")
-		return err
+		logger.Error(err, "Controller manager failed")
+		os.Exit(1)
 	}
 
 	return nil

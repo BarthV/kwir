@@ -1,14 +1,20 @@
 ---
+# rewritePolicy are: "StopAfterFirstMatch" & "ApplyAllRules" (default:"StopAfterFirstMatch")
+rewritePolicy: StopAfterFirstMatch
 rewriteRules:
-  prefixRules:
-  - match: "gcr.io"
-    replace: "gcr.azk8s.cn"
-  - match: "k8s.gcr.io"
-    replace: "gcr.azk8s.cn/google_containers"
-  - match: "quay.io"
-    replace: "quay.azk8s.cn"
-  regexRules:
-  - match: "^([^/]+):(.+)"
-    replace: "dockerhub.azk8s.cn/library/${1}:${2}"
-  - match: "^([^/]+)/([^:]+):(.+)"
-    replace: "dockerhub.azk8s.cn/${1}/${2}:${3}"
+  # prefixRules are applied first & ran in order.
+  prefixRules: []
+    # - match: "gitlab.com/my-project"
+    #   replace: "registry.docker.local/my-group"
+    # - match: "gcr.io"
+    #   replace: "gcr.azk8s.cn"
+    # - match: "k8s.gcr.io"
+    #   replace: "gcr.azk8s.cn/google_containers"
+  # regexRules are always tried after prefixRules & ran in order.
+  regexRules: []
+    # - match: "^busybox:(.+)"
+    #   replace: "mylocalregistry.local/busybox:${1}"
+    # - match: "^([^/]+):(.+)"
+    #   replace: "registry.harbor.local/library/${1}:${2}"
+    # - match: "^([^/]+)/([^:]+):(.+)"
+    #   replace: "registry.harbor.local/${1}/${2}:${3}"

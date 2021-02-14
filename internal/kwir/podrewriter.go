@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,9 +19,41 @@ type PodRewriter struct {
 	cfg     kwirConfig
 }
 
+func (rl *rule) applyPrefixRule(image string) (string, bool) {
+	if !strings.HasPrefix(image, rl.Match) {
+		return image, false
+	}
+	return rl.Replace + image[len(rl.Match):], true
+}
+
+func (rl *rule) applyRegexRule(image string) (string, bool) {
+	if !rl.regex.MatchString(image) {
+		return image, false
+	}
+	return rl.regex.ReplaceAllString(image, rl.Replace), true
+}
+
 // rewriteImages takes an input string and applies (in order) all rewrite rules then returns it
 func (a *PodRewriter) rewriteImage(image string) (string, error) {
-	return image, nil
+	newImage := image
+
+	for _, rule := range a.cfg.RewriteRules.PrefixRules {
+		changed := false
+		newImage, changed = rule.applyPrefixRule(newImage)
+		if changed && a.cfg.RewritePolicy == stopAfterFirstMatchPolicy {
+			return newImage, nil
+		}
+	}
+
+	for _, rule := range a.cfg.RewriteRules.RegexRules {
+		changed := false
+		newImage, changed = rule.applyRegexRule(newImage)
+		if changed && a.cfg.RewritePolicy == stopAfterFirstMatchPolicy {
+			return newImage, nil
+		}
+	}
+
+	return newImage, nil
 }
 
 // LoadConfig initialize kwir PodRewriter configuration from a given yaml file
@@ -34,21 +67,21 @@ func (a *PodRewriter) LoadConfig(cfgFile string) error {
 	return nil
 }
 
-// Handle is a kube webhook handler that rewrite Pod containers images based on its own config rules
+// Handle is a kube admission webhook handler that rewrite Pod containers images based on its own config rules
 func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admission.Response {
 	logger := log.Log.WithName("kwir-podrewriter")
 	pod := &corev1.Pod{}
 
 	err := a.decoder.Decode(req, pod)
 
-	// Fails and refuse admission if received object cannot be parsed as a core/v1/Pod
+	// Don't modify and allow admission if received object cannot be parsed as a core/v1/Pod
 	if err != nil {
-		logger.Error(err, "Webhook request must be a pod",
+		logger.Info("Webhook request is not a v1/Pod",
 			"kind", req.Kind,
 			"name", req.Name,
 			"namespace", req.Namespace,
 		)
-		return admission.Errored(http.StatusBadRequest, err)
+		return admission.Allowed("Unsupported API object: No change applied")
 	}
 
 	// A special pod annotation allows to skip any kind of image mutation.
@@ -99,12 +132,20 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
-		logger.Info("Rewriting Container image",
-			"namespace", pod.Namespace,
-			"pod", pod.Name,
-			"original-image", container.Image,
-			"mutated-image", newImage,
-		)
+		if newImage != container.Image {
+			logger.Info("Rewriting Container image",
+				"namespace", pod.Namespace,
+				"pod", pod.Name,
+				"original-image", container.Image,
+				"mutated-image", newImage,
+			)
+		} else {
+			logger.Info("Image kept unchanged",
+				"namespace", pod.Namespace,
+				"pod", pod.Name,
+				"image", container.Image,
+			)
+		}
 	}
 
 	// Prepare & apply pod mutation

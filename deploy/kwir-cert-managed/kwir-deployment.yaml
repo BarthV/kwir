@@ -16,17 +16,39 @@ spec:
       labels:
         app: kwir
     spec:
+      securityContext:
+        runAsUser: 65532
+      terminationGracePeriodSeconds: 10
       containers:
       - name: kwir
         image: barthv/kwir
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
         ports:
+        - name: checks-http
+          containerPort: 9080
         - name: https
           containerPort: 9443
-          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: checks-http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: checks-http
+          initialDelaySeconds: 5
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /certs
           name: certs
+        - mountPath: /configs
+          name: configs
         resources:
           limits:
             cpu: 20m

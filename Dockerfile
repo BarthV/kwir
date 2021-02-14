@@ -4,6 +4,6 @@ COPY . ./
 RUN go build .
 
 FROM alpine:3.13
+COPY --from=build /kwir/kwir /
 WORKDIR /
-COPY --from=build /kwir/kwir ./
-CMD /kwir
+CMD ["./kwir","run"]
