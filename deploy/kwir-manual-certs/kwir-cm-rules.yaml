@@ -1,0 +1,14 @@
+---
+rewriteRules:
+  prefixRules:
+  - match: "gcr.io"
+    replace: "gcr.azk8s.cn"
+  - match: "k8s.gcr.io"
+    replace: "gcr.azk8s.cn/google_containers"
+  - match: "quay.io"
+    replace: "quay.azk8s.cn"
+  regexRules:
+  - match: "^([^/]+):(.+)"
+    replace: "dockerhub.azk8s.cn/library/${1}:${2}"
+  - match: "^([^/]+)/([^:]+):(.+)"
+    replace: "dockerhub.azk8s.cn/${1}/${2}:${3}"

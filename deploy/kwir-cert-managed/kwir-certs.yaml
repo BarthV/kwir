@@ -1,0 +1,22 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigning-issuer
+  namespace: kwir
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-webhook-img-rewriter-certs
+  namespace: kwir
+spec:
+  secretName: kube-webhook-img-rewriter-certs
+  dnsNames:
+  - kube-webhook-img-rewriter.kwir.svc.cluster.local
+  - kube-webhook-img-rewriter.kwir.svc
+  issuerRef:
+    name: selfsigning-issuer

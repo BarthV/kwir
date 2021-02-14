@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kube-webhook-img-rewriter-certs
+  namespace: kwir
+type: kubernetes.io/tls
+data:
+  tls.crt: Cg== # webhook pubkey to be filled
+  tls.key: Cg== # webhook privkey to be filled

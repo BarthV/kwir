@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kwir
+  namespace: kwir
+  labels:
+    app: kwir
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kwir
+  template:
+    metadata:
+      labels:
+        app: kwir
+    spec:
+      containers:
+      - name: kwir
+        image: barthv/kwir
+        imagePullPolicy: Always
+        ports:
+        - name: https
+          containerPort: 9443
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /certs
+          name: certs
+        resources:
+          limits:
+            cpu: 20m
+            memory: 64Mi
+      volumes:
+      - name: certs
+        secret:
+          secretName: kube-webhook-img-rewriter-certs
+      - name: configs
+        configMap:
+          name: kwir-configs

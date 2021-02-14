@@ -1,0 +1,20 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# If you change kwir namespace, don't forget to :
+## Update service namespace in webhook clientConfig
+## Update dnsNames when you will generates webhook's certs
+namespace: kwir
+
+configMapGenerator:
+- name: kwir-configs
+  files:
+  - kwir-cm-rules.yaml
+
+resources:
+- kwir-ns.yaml
+- kwir-certs.yaml
+- kwir-deployment.yaml
+- kwir-service.yaml
+- kwir-webhook.yaml

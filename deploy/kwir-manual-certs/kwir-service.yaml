@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-webhook-img-rewriter
+  namespace: kwir
+  labels:
+    app: kube-webhook-img-rewriter
+spec:
+  ports:
+  - port: 443
+    targetPort: https
+    protocol: TCP
+  selector:
+    app: kwir

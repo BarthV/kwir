@@ -23,7 +23,7 @@ func (a *PodRewriter) rewriteImage(image string) (string, error) {
 
 // Handle is a kube webhook handler that rewrite Pod containers images based on its own config rules
 func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admission.Response {
-	logger := log.Log.WithName("kwir-podrewriter-handler")
+	logger := log.Log.WithName("kwir-podrewriter")
 	pod := &corev1.Pod{}
 
 	err := a.decoder.Decode(req, pod)
@@ -31,12 +31,13 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// A special pod annotation allows to skip any kind of image mutation.
 	if _, exists := pod.Annotations["kwir/podrewriter-skip"]; exists {
 		logger.Info("Pod explitely skipped podrewriter handler",
 			"namespace", pod.Namespace,
 			"pod", pod.Name,
 		)
-		return admission.Allowed("Pod explitely skipped podrewriter handler")
+		return admission.Allowed("Pod explitely skipped podrewriter policy")
 	}
 
 	if pod.Annotations == nil {
