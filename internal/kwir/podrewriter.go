@@ -15,10 +15,23 @@ import (
 type PodRewriter struct {
 	Client  client.Client
 	decoder *admission.Decoder
+	cfg     kwirConfig
 }
 
+// rewriteImages takes an input string and applies (in order) all rewrite rules then returns it
 func (a *PodRewriter) rewriteImage(image string) (string, error) {
 	return image, nil
+}
+
+// LoadConfig initialize kwir PodRewriter configuration from a given yaml file
+func (a *PodRewriter) LoadConfig(cfgFile string) error {
+	config, err := parseKwirConfig(cfgFile)
+	if err != nil {
+		return err
+	}
+
+	a.cfg = config
+	return nil
 }
 
 // Handle is a kube webhook handler that rewrite Pod containers images based on its own config rules
@@ -27,7 +40,14 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 	pod := &corev1.Pod{}
 
 	err := a.decoder.Decode(req, pod)
+
+	// Fails and refuse admission if received object cannot be parsed as a core/v1/Pod
 	if err != nil {
+		logger.Error(err, "Webhook request must be a pod",
+			"kind", req.Kind,
+			"name", req.Name,
+			"namespace", req.Namespace,
+		)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -45,8 +65,19 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 	}
 	pod.Annotations["kwir/podrewriter-processed"] = "true"
 
+	// rewrite any existing InitContainers
 	for _, container := range pod.Spec.InitContainers {
-		newImage, _ := a.rewriteImage(container.Image)
+		newImage, err := a.rewriteImage(container.Image)
+
+		if err != nil {
+			logger.Error(err, "Impossible to rewrite Container image",
+				"namespace", pod.Namespace,
+				"pod", pod.Name,
+				"image", container.Image,
+			)
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+
 		logger.Info("Rewriting InitContainer image",
 			"namespace", pod.Namespace,
 			"pod", pod.Name,
@@ -55,8 +86,19 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 		)
 	}
 
+	// rewrite any existing Containers
 	for _, container := range pod.Spec.Containers {
-		newImage, _ := a.rewriteImage(container.Image)
+		newImage, err := a.rewriteImage(container.Image)
+
+		if err != nil {
+			logger.Error(err, "Impossible to rewrite Container image",
+				"namespace", pod.Namespace,
+				"pod", pod.Name,
+				"image", container.Image,
+			)
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+
 		logger.Info("Rewriting Container image",
 			"namespace", pod.Namespace,
 			"pod", pod.Name,
@@ -65,6 +107,7 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 		)
 	}
 
+	// Prepare & apply pod mutation
 	marshaledPod, err := json.Marshal(pod)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)

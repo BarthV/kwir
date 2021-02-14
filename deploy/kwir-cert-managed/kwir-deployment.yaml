@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kwir
+  namespace: kwir
   labels:
     app: kwir
 spec:

@@ -10,7 +10,7 @@ namespace: kwir
 configMapGenerator:
 - name: kwir-configs
   files:
-  - kwir-cm-rules.yaml
+  - kwir-config.yaml
 
 resources:
 - kwir-ns.yaml

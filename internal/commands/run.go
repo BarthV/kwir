@@ -1,0 +1,85 @@
+package commands
+
+import (
+	"github.com/barthv/kwir/internal/kwir"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+)
+
+func newKwirCommand() *cobra.Command {
+	cmd := cobra.Command{
+		Use:           "run",
+		Short:         "Runs kwir admission webhook manager",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+
+		PreRun: func(cmd *cobra.Command, args []string) {
+			// init controller-runtime logger for kwir manager
+			log.SetLogger(zap.New())
+		},
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := runKwirCommand(); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	cmd.PersistentFlags().StringP("config", "c", "./configs/kwir-configs.yaml", "Path of the kwir yaml file holding rewrite rules")
+	viper.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
+
+	cmd.PersistentFlags().StringP("tlsdir", "t", "./certs/", "Dir containing webhook's tls certificates")
+	viper.BindPFlag("tlsdir", cmd.PersistentFlags().Lookup("tlsdir"))
+
+	return &cmd
+}
+
+func runKwirCommand() error {
+	logger := log.Log.WithName("kwir-manager")
+
+	// Setup a Manager
+	logger.Info("setting up manager")
+	mgrOpts := manager.Options{
+		CertDir: viper.GetString("tlsdir"),
+	}
+
+	mgr, err := manager.New(config.GetConfigOrDie(), mgrOpts)
+	if err != nil {
+		logger.Error(err, "unable to set up overall controller manager")
+		return err
+	}
+
+	// Setup webhooks
+	logger.Info("setting up webhook server")
+	hookServer := mgr.GetWebhookServer()
+
+	kwirPodRewriterHandler := &kwir.PodRewriter{
+		Client: mgr.GetClient(),
+	}
+
+	// Load Kwir configuration from file
+	err = kwirPodRewriterHandler.LoadConfig(viper.GetString("config"))
+	if err != nil {
+		logger.Error(err, "Unable to load config")
+		return err
+	}
+
+	logger.Info("registering webhooks to the webhook server")
+	hookServer.Register("/kwir-mutate-v1-pod", &webhook.Admission{Handler: kwirPodRewriterHandler})
+
+	logger.Info("starting manager")
+	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+		logger.Error(err, "unable to run manager")
+		return err
+	}
+
+	return nil
+}
