@@ -23,9 +23,11 @@ jobs:
           go-version: 1.15.x
 
       - name: Lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.36.0
-          golangci-lint run
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.36
+          args: --timeout=2m
+          skip-go-installation: true
 
       - name: Build
         run: go build ./...
