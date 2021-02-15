@@ -37,10 +37,10 @@ func newKwirCommand() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringP("config", "c", "./configs/kwir-config.yaml", "Path of the kwir yaml file holding rewrite rules")
-	viper.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
+	_ = viper.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
 
 	cmd.PersistentFlags().StringP("tlsdir", "t", "./certs/", "Dir containing webhook's tls certificates")
-	viper.BindPFlag("tlsdir", cmd.PersistentFlags().Lookup("tlsdir"))
+	_ = viper.BindPFlag("tlsdir", cmd.PersistentFlags().Lookup("tlsdir"))
 
 	return &cmd
 }

@@ -24,6 +24,7 @@ func NewDefaultCommand() *cobra.Command {
 	viper.SetEnvPrefix("KWIR")
 	viper.AutomaticEnv()
 
+	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newKwirCommand())
 
 	return &cmd
