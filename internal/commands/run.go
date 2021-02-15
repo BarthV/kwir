@@ -46,15 +46,14 @@ func newKwirCommand() *cobra.Command {
 }
 
 func runKwirCommand() error {
-	logger := log.Log.WithName("kwir-manager")
+	logger := log.Log.WithName("kwir")
 
 	// Setup a Manager
 	logger.Info("Setting up controller manager")
 	mgrOpts := manager.Options{
+		Logger:                 log.Log.WithName("kwir-manager"),
 		CertDir:                viper.GetString("tlsdir"),
 		HealthProbeBindAddress: ":9080",
-		LeaderElection:         false,
-		LeaderElectionID:       "w1vraga9pn4pg3go.svc.kwir.cluster.local",
 	}
 
 	mgr, err := manager.New(config.GetConfigOrDie(), mgrOpts)
@@ -76,12 +75,12 @@ func runKwirCommand() error {
 	}
 
 	logger.Info("Registering health & ready checks to the manager")
-	err = mgr.AddReadyzCheck("readyz", healthz.Ping)
+	err = mgr.AddReadyzCheck("ready", healthz.Ping)
 	if err != nil {
 		logger.Error(err, "Unable add a readiness check")
 		return err
 	}
-	err = mgr.AddHealthzCheck("healthz", healthz.Ping)
+	err = mgr.AddHealthzCheck("health", healthz.Ping)
 	if err != nil {
 		logger.Error(err, "Unable add a health check")
 		return err

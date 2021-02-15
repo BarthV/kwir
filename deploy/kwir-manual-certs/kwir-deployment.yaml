@@ -7,7 +7,7 @@ metadata:
   labels:
     app: kwir
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: kwir
@@ -16,6 +16,18 @@ spec:
       labels:
         app: kwir
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kwir
       securityContext:
         runAsUser: 65532
       terminationGracePeriodSeconds: 10
@@ -52,7 +64,7 @@ spec:
         resources:
           limits:
             cpu: 20m
-            memory: 64Mi
+            memory: 32Mi
       volumes:
       - name: certs
         secret:
