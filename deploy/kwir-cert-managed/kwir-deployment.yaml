@@ -33,7 +33,8 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: kwir
-        image: barthv/kwir
+        image: barthv/kwir:v0.0.2
+        imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
         ports:
