@@ -27,4 +27,5 @@ jobs:
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GO111MODULE: on
+          GO111MODULE: "on"
+          CGO_ENABLED: "1"
