@@ -34,21 +34,21 @@ func (rl *rule) applyRegexRule(image string) (string, bool) {
 }
 
 // rewriteImages takes an input string and applies (in order) all rewrite rules then returns it
-func (a *PodRewriter) rewriteImage(image string) (string, error) {
+func (cfg *kwirConfig) rewriteImage(image string) (string, error) {
 	newImage := image
 
-	for _, rule := range a.cfg.RewriteRules.PrefixRules {
+	for _, rule := range cfg.RewriteRules.PrefixRules {
 		changed := false
 		newImage, changed = rule.applyPrefixRule(newImage)
-		if changed && a.cfg.RewritePolicy == stopAfterFirstMatchPolicy {
+		if changed && cfg.RewritePolicy == stopAfterFirstMatchPolicy {
 			return newImage, nil
 		}
 	}
 
-	for _, rule := range a.cfg.RewriteRules.RegexRules {
+	for _, rule := range cfg.RewriteRules.RegexRules {
 		changed := false
 		newImage, changed = rule.applyRegexRule(newImage)
-		if changed && a.cfg.RewritePolicy == stopAfterFirstMatchPolicy {
+		if changed && cfg.RewritePolicy == stopAfterFirstMatchPolicy {
 			return newImage, nil
 		}
 	}
@@ -100,7 +100,7 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 
 	// rewrite any existing InitContainers
 	for _, container := range pod.Spec.InitContainers {
-		newImage, err := a.rewriteImage(container.Image)
+		newImage, err := a.cfg.rewriteImage(container.Image)
 
 		if err != nil {
 			logger.Error(err, "Impossible to rewrite Container image",
@@ -121,7 +121,7 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 
 	// rewrite any existing Containers
 	for _, container := range pod.Spec.Containers {
-		newImage, err := a.rewriteImage(container.Image)
+		newImage, err := a.cfg.rewriteImage(container.Image)
 
 		if err != nil {
 			logger.Error(err, "Impossible to rewrite Container image",

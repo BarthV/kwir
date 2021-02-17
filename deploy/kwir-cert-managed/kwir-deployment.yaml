@@ -34,7 +34,6 @@ spec:
       containers:
       - name: kwir
         image: barthv/kwir
-        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
         ports:

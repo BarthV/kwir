@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	appVersion = "0.0.1-alpha1"
+	appVersion = "0.0.1-alpha2"
 )
 
 // NewDefaultCommand creates the default command.
