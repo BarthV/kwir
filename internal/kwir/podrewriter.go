@@ -2,13 +2,14 @@ package kwir
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -71,6 +72,7 @@ func (a *PodRewriter) LoadConfig(cfgFile string) error {
 func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admission.Response {
 	logger := log.Log.WithName("kwir-podrewriter")
 	pod := &corev1.Pod{}
+	patches := []webhook.JSONPatchOp{}
 
 	err := a.decoder.Decode(req, pod)
 
@@ -93,13 +95,24 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 		return admission.Allowed("Pod explitely skipped podrewriter policy")
 	}
 
+	// If the pod doesnt have annotations prepend a patch
+	// so the annotations map exists before the patches above
 	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
+		patches = append(patches, webhook.JSONPatchOp{
+			Operation: "add",
+			Path:      "/metadata/annotations",
+			Value:     map[string]string{},
+		})
 	}
-	pod.Annotations["kwir/podrewriter-processed"] = "true"
+
+	patches = append(patches, webhook.JSONPatchOp{
+		Operation: "add",
+		Path:      "/metadata/annotations/kwir-podrewriter-modified",
+		Value:     "true",
+	})
 
 	// rewrite any existing InitContainers
-	for _, container := range pod.Spec.InitContainers {
+	for i, container := range pod.Spec.InitContainers {
 		newImage, err := a.cfg.rewriteImage(container.Image)
 
 		if err != nil {
@@ -117,10 +130,16 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 			"original-image", container.Image,
 			"mutated-image", newImage,
 		)
+
+		patches = append(patches, webhook.JSONPatchOp{
+			Operation: "replace",
+			Path:      fmt.Sprintf("/spec/initContainers/%d/image", i),
+			Value:     newImage,
+		})
 	}
 
 	// rewrite any existing Containers
-	for _, container := range pod.Spec.Containers {
+	for i, container := range pod.Spec.Containers {
 		newImage, err := a.cfg.rewriteImage(container.Image)
 
 		if err != nil {
@@ -139,6 +158,13 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 				"original-image", container.Image,
 				"mutated-image", newImage,
 			)
+
+			patches = append(patches, webhook.JSONPatchOp{
+				Operation: "replace",
+				Path:      fmt.Sprintf("/spec/containers/%d/image", i),
+				Value:     newImage,
+			})
+
 		} else {
 			logger.Info("Image kept unchanged",
 				"namespace", pod.Namespace,
@@ -148,13 +174,8 @@ func (a *PodRewriter) Handle(ctx context.Context, req admission.Request) admissi
 		}
 	}
 
-	// Prepare & apply pod mutation
-	marshaledPod, err := json.Marshal(pod)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
+	// apply pod mutation & reply to admission request
+	return admission.Patched("Pod images rewritten", patches...)
 }
 
 // PodRewriter implements admission.DecoderInjector.

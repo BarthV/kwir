@@ -14,6 +14,8 @@ rewriteRules:
   regexRules: []
     # - match: "^busybox:(.+)"
     #   replace: "mylocalregistry.local/busybox:${1}"
+    # - match: "(.+)"
+    #   replace: "127.0.0.1:5000/${1}"
     # - match: "^([^/]+):(.+)"
     #   replace: "registry.harbor.local/library/${1}:${2}"
     # - match: "^([^/]+)/([^:]+):(.+)"
